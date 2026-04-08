@@ -1,10 +1,10 @@
 x-airflow-build: &airflow_build
   context: .
   dockerfile_inline: |
-    FROM apache/airflow:2.10.4-python3.11
+    FROM apache/airflow:2.9.3-python3.11
     USER root
     RUN apt-get update -qq && \
-        apt-get install -y --no-install-recommends docker.io procps && \
+        apt-get install -y --no-install-recommends docker.io && \
         rm -rf /var/lib/apt/lists/*
     USER airflow
     RUN pip install --no-cache-dir \
@@ -77,11 +77,12 @@ x-log-l: &log_l
 
 x-airflow-env: &airflow_env
   AIRFLOW__CORE__EXECUTOR: LocalExecutor
-  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@airflow-postgres:5432/airflow
-  AIRFLOW__CORE__FERNET_KEY: "${AIRFLOW_FERNET_KEY}"
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
+  AIRFLOW__CORE__FERNET_KEY: "81HqDtbqAywKSOumSha3BhWNOdQ26slT6K0YaZeZyPs="
   AIRFLOW__CORE__LOAD_EXAMPLES: "false"
   AVIATIONSTACK_API_KEY: "${AVIATIONSTACK_API_KEY:-YOUR_API_KEY_HERE}"
   KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+  DOCKER_API_VERSION: "1.44"
 
 x-airflow-volumes: &airflow_volumes
   - ../dags:/opt/airflow/dags
@@ -367,8 +368,8 @@ services:
     container_name: airflow-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
     volumes:
       - airflow-pg-data:/var/lib/postgresql/data
@@ -389,16 +390,16 @@ services:
       <<: *airflow_env
       _AIRFLOW_DB_MIGRATE: "true"
       _AIRFLOW_WWW_USER_CREATE: "true"
-      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USERNAME}
-      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
     entrypoint: /bin/bash
     command:
       - -c
       - |
         airflow db migrate
         airflow users create \
-          --username ${AIRFLOW_ADMIN_USERNAME} \
-          --password ${AIRFLOW_ADMIN_PASSWORD} \
+          --username admin \
+          --password admin \
           --firstname Admin \
           --lastname User \
           --role Admin \
@@ -484,45 +485,11 @@ services:
       POSTGRES_HOST: "airflow-postgres"
       POSTGRES_PORT: "5432"
       POSTGRES_DB: "airflow"
-      POSTGRES_USER: "${POSTGRES_USER}"
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_USER: "airflow"
+      POSTGRES_PASSWORD: "airflow"
     volumes:
       - ../producer:/app
     command: python /app/earthquake_producer.py
-    logging: *log_s
-
-  # =====================================================
-  #  KAFKA → POSTGRES SINK (Tableau)
-  #
-  #  Consomme earthquake-stats, earthquake-by-depth,
-  #  earthquake-alerts et insère dans PostgreSQL `earthquake`
-  #  pour la connexion Tableau Desktop.
-  # =====================================================
-  kafka-to-postgres:
-    build:
-      context: .
-      dockerfile_inline: |
-        FROM python:3.11-slim
-        RUN pip install --no-cache-dir \
-            kafka-python==2.0.2 \
-            psycopg2-binary==2.9.9
-    container_name: kafka-to-postgres
-    restart: unless-stopped
-    depends_on:
-      kafka:
-        condition: service_healthy
-      airflow-postgres:
-        condition: service_healthy
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      POSTGRES_HOST: airflow-postgres
-      POSTGRES_PORT: "5432"
-      POSTGRES_DB: earthquake
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - ../scripts:/scripts
-    command: python /scripts/kafka_to_postgres.py
     logging: *log_s
 
 volumes:
