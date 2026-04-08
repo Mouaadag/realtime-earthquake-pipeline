@@ -1,0 +1,1501 @@
+\documentclass[12pt,a4paper]{article}
+
+% ---------------------------------------------------------------------------
+%  Encodage, langue, polices
+% ---------------------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+
+% ---------------------------------------------------------------------------
+%  Mise en page
+% ---------------------------------------------------------------------------
+\usepackage[top=2.5cm, bottom=2.5cm, left=2.8cm, right=2.8cm]{geometry}
+\usepackage{parskip}          % espace entre paragraphes, pas d'indentation
+\setlength{\parskip}{6pt}
+
+% ---------------------------------------------------------------------------
+%  Couleurs et mise en forme
+% ---------------------------------------------------------------------------
+\usepackage{xcolor}
+\definecolor{kafkared}{RGB}{211,47,47}
+\definecolor{flinkblue}{RGB}{21,101,192}
+\definecolor{airflowgreen}{RGB}{30,130,76}
+\definecolor{codebackground}{RGB}{245,245,245}
+\definecolor{bordergray}{RGB}{200,200,200}
+\definecolor{warnorange}{RGB}{230,81,0}
+\definecolor{titlegray}{RGB}{55,55,55}
+\definecolor{pgblue}{RGB}{0,60,120}
+
+% ---------------------------------------------------------------------------
+%  Listings (code source)
+% ---------------------------------------------------------------------------
+\usepackage{listings}
+\usepackage{lstautogobble}
+
+\lstdefinestyle{bash}{
+  language=bash,
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebackground},
+  frame=single,
+  rulecolor=\color{bordergray},
+  breaklines=true,
+  autogobble=true,
+  showstringspaces=false,
+  keywordstyle=\color{flinkblue}\bfseries,
+  commentstyle=\color{gray}\itshape,
+}
+
+\lstdefinestyle{python}{
+  language=Python,
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebackground},
+  frame=single,
+  rulecolor=\color{bordergray},
+  breaklines=true,
+  autogobble=true,
+  showstringspaces=false,
+  keywordstyle=\color{flinkblue}\bfseries,
+  stringstyle=\color{kafkared},
+  commentstyle=\color{gray}\itshape,
+}
+
+\lstdefinestyle{sql}{
+  language=SQL,
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebackground},
+  frame=single,
+  rulecolor=\color{bordergray},
+  breaklines=true,
+  autogobble=true,
+  showstringspaces=false,
+  extendedchars=true,
+  inputencoding=utf8,
+  keywordstyle=\color{flinkblue}\bfseries,
+  stringstyle=\color{kafkared},
+  commentstyle=\color{gray}\itshape,
+  morekeywords={PROCTIME,CURRENT_TIMESTAMP,IF,NOT,EXISTS,STRING,DOUBLE,BIGINT},
+}
+
+\lstdefinestyle{json}{
+  basicstyle=\ttfamily\scriptsize,
+  backgroundcolor=\color{codebackground},
+  frame=single,
+  rulecolor=\color{bordergray},
+  breaklines=true,
+  showstringspaces=false,
+}
+
+% ---------------------------------------------------------------------------
+%  Encadrés (boîtes d'info / attention / concept)
+% ---------------------------------------------------------------------------
+\usepackage{tcolorbox}
+\tcbuselibrary{skins, breakable}
+
+\newtcolorbox{conceptbox}[1]{
+  colback=flinkblue!5,
+  colframe=flinkblue!70,
+  fonttitle=\bfseries\small,
+  title={Concept clé --- #1},
+  breakable,
+}
+
+\newtcolorbox{warningbox}{
+  colback=warnorange!8,
+  colframe=warnorange,
+  fonttitle=\bfseries\small,
+  title={Attention},
+  breakable,
+}
+
+\newtcolorbox{infobox}[1]{
+  colback=airflowgreen!5,
+  colframe=airflowgreen!60,
+  fonttitle=\bfseries\small,
+  title={#1},
+  breakable,
+}
+
+\newtcolorbox{fournibox}{
+  colback=pgblue!5,
+  colframe=pgblue!60,
+  fonttitle=\bfseries\small,
+  title={Fichier fourni --- à lire, pas à modifier},
+  breakable,
+}
+
+% ---------------------------------------------------------------------------
+%  Tableaux
+% ---------------------------------------------------------------------------
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+
+% ---------------------------------------------------------------------------
+%  Liens, méta-données PDF
+% ---------------------------------------------------------------------------
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=flinkblue,
+  urlcolor=kafkared,
+  citecolor=gray,
+  pdftitle={TP Data Engineering Temps Réel --- Pipeline Séismes},
+  pdfauthor={Golden Collar Academy},
+}
+
+% ---------------------------------------------------------------------------
+%  En-têtes / pieds de page
+% ---------------------------------------------------------------------------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{titlegray}{Data Engineering Temps Réel --- Séance 7}}
+\fancyhead[R]{\small\textcolor{titlegray}{TP Séismes}}
+\fancyfoot[C]{\small\textcolor{gray}{\thepage}}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ---------------------------------------------------------------------------
+%  Numérotation des sections
+% ---------------------------------------------------------------------------
+\usepackage{titlesec}
+\titleformat{\section}{\large\bfseries\color{titlegray}}{Partie \thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries\color{titlegray}}{\thesubsection.}{0.5em}{}
+
+% ---------------------------------------------------------------------------
+%  Divers
+% ---------------------------------------------------------------------------
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{amsmath}
+
+% ===========================================================================
+%  DÉBUT DU DOCUMENT
+% ===========================================================================
+\begin{document}
+
+% ---------------------------------------------------------------------------
+%  PAGE DE TITRE
+% ---------------------------------------------------------------------------
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+
+  {\LARGE\bfseries\color{titlegray} Data Engineering Temps Réel}\\[0.4cm]
+  {\large\color{gray} Séance 7 --- Travaux Pratiques}\\[2cm]
+
+  {\Huge\bfseries\color{kafkared} Pipeline Séismes}\\[0.3cm]
+  {\Large\color{flinkblue} USGS API $\to$ Kafka $\to$ Flink SQL $\to$ PostgreSQL $\to$ Tableau}\\[2.5cm]
+
+  \begin{tabular}{ll}
+    \textbf{Durée estimée} & 3 heures \\[0.3cm]
+    \textbf{Niveau}        & BAC+5 --- Data Engineering \\[0.3cm]
+    \textbf{Prérequis}     & Séances 1--6 (Kafka, Flink SQL, Airflow) \\[0.3cm]
+    \textbf{Technologies}  & Python, Kafka, Flink SQL, Airflow, PostgreSQL, Tableau \\
+  \end{tabular}
+
+  \vfill
+  {\small\color{gray} Golden Collar Academy --- \today}
+\end{titlepage}
+
+% ---------------------------------------------------------------------------
+%  TABLE DES MATIÈRES
+% ---------------------------------------------------------------------------
+
+% ===========================================================================
+%  INTRODUCTION
+% ===========================================================================
+\section*{Introduction et objectifs}
+\addcontentsline{toc}{section}{Introduction et objectifs}
+
+\subsection*{Contexte}
+
+Les séismes sont l'un des phénomènes naturels les plus dangereux et les plus imprévisibles.
+Chaque jour, des centaines de tremblements de terre sont enregistrés dans le monde entier
+par un réseau mondial de sismographes.
+
+Le \textbf{U.S. Geological Survey (USGS)} centralise ces données et les expose via une
+API publique en temps réel. Cette API est idéale pour un TP de Data Engineering :
+elle est gratuite, sans clé d'API, et produit des données réelles en continu.
+
+\subsection*{Ce que vous recevez}
+
+Pour ce TP, vous disposez de deux dossiers déjà implémentés :
+
+\begin{itemize}
+  \item \texttt{infra/} : le fichier \texttt{docker-compose.yml} qui démarre l'ensemble
+        des services (Kafka, Flink, Airflow, PostgreSQL, Kafdrop).
+  \item \texttt{producer/} : le script Python \texttt{earthquake\_producer.py} qui
+        interroge l'API USGS toutes les 30 secondes et publie les séismes dans Kafka
+        \textbf{et} PostgreSQL en temps réel.
+\end{itemize}
+
+\subsection*{Ce que vous devez construire}
+
+\begin{enumerate}[label=\textbf{\arabic*.}]
+  \item \textbf{Le DAG Airflow} (\texttt{dags/earthquake\_pipeline.py}) :
+        orchestre le démarrage du pipeline --- crée les topics Kafka,
+        soumet les jobs Flink, vérifie que tout fonctionne.
+  \item \textbf{Le fichier Flink SQL} (\texttt{flink-jobs/earthquake\_processing.sql}) :
+        enrichit chaque séisme en temps réel (catégorie de profondeur, sévérité)
+        et génère des alertes pour les séismes dangereux.
+\end{enumerate}
+
+\subsection*{Objectifs du TP}
+
+À la fin de ce TP, vous serez capables de :
+
+\begin{enumerate}[label=\textbf{\arabic*.}]
+  \item Comprendre l'architecture d'un producteur temps réel (polling + Kafka + PostgreSQL)
+  \item Créer un DAG Airflow d'initialisation de pipeline
+  \item Écrire des jobs Flink SQL d'enrichissement \textbf{sans fenêtre temporelle}
+  \item Vérifier le flux de bout en bout via Kafdrop et l'interface Flink
+  \item Visualiser les données sismiques dans Tableau Desktop via PostgreSQL
+\end{enumerate}
+
+\subsection*{Architecture du pipeline}
+
+\begin{center}
+\begin{tabular}{ccccccccc}
+  \textbf{\color{pgblue}Producer} &
+  $\to$ &
+  \textbf{\color{kafkared}Kafka} &
+  $\to$ &
+  \textbf{\color{flinkblue}Flink SQL} &
+  $\to$ &
+  \textbf{\color{kafkared}Kafka} &
+  $\to$ &
+  \textbf{Tableau} \\[0.2cm]
+  \small(fourni) & &
+  \small\texttt{earthquake-raw} & &
+  \small(à construire) & &
+  \small\texttt{earthquake-enriched} & & \\[0.3cm]
+  & & & & & & \textbf{\color{pgblue}PostgreSQL} & $\to$ & \textbf{Tableau} \\
+  & & & & & & \small\texttt{earthquake\_events} & & \\
+\end{tabular}
+\end{center}
+
+\vspace{0.5cm}
+
+\begin{infobox}{Rôles des composants}
+  \begin{itemize}
+    \item \textbf{Producer (Docker, permanent)} : interroge USGS toutes les 30s,
+          écrit dans \texttt{earthquake-raw} (Kafka) et \texttt{earthquake\_events} (PostgreSQL).
+    \item \textbf{kafka-to-postgres (Docker, permanent)} : consomme les topics Flink enrichis
+          (\texttt{earthquake-alerts}, etc.) et les matérialise dans la base \texttt{earthquake} (PostgreSQL).
+    \item \textbf{Airflow DAG} : déclenché \emph{toutes les 30 minutes},
+          vérifie l'infrastructure, crée les topics, soumet les jobs Flink, vérifie que le sink tourne.
+    \item \textbf{Flink SQL} : lit \texttt{earthquake-raw} en continu,
+          enrichit chaque événement et publie dans \texttt{earthquake-enriched} ;
+          filtre les alertes dans \texttt{earthquake-alerts}.
+    \item \textbf{Tableau Desktop} : se connecte à PostgreSQL
+          (base \texttt{earthquake}) pour afficher la carte mondiale et les alertes.
+  \end{itemize}
+\end{infobox}
+
+Les topics Kafka du pipeline :
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+  \toprule
+  \textbf{Topic Kafka} & \textbf{Contenu} \\
+  \midrule
+  \texttt{earthquake-raw}      & Données brutes USGS (publiées par le producer) \\
+  \texttt{earthquake-enriched} & Séismes enrichis par Flink (profondeur, sévérité, significativité) \\
+  \texttt{earthquake-alerts}   & Alertes pour séismes $\geq$ 5.0 ou alerte tsunami \\
+  \bottomrule
+\end{tabularx}
+\end{center}
+
+\newpage
+
+% ===========================================================================
+%  PARTIE 1 — EXPLORATION DE L'API USGS
+% ===========================================================================
+\section{Exploration de l'API USGS}
+
+\subsection{L'API USGS Earthquake}
+
+L'API USGS FDSN (Federated Data System Network) expose les données sismiques mondiales.
+Elle retourne du \textbf{GeoJSON} (RFC 7946), un format standard pour les données géospatiales.
+
+\begin{infobox}{Documentation de référence}
+  \url{https://earthquake.usgs.gov/fdsnws/event/1/}
+\end{infobox}
+
+\subsection{Structure de la réponse GeoJSON}
+
+Un appel à l'API retourne une \textit{FeatureCollection} GeoJSON.
+Chaque \texttt{feature} représente un séisme :
+
+\begin{lstlisting}[style=json, caption={Structure d'un séisme GeoJSON}]
+{
+  "type": "Feature",
+  "properties": {
+    "mag":      3.0,
+    "place":    "22 km WNW of Mentone, Texas",
+    "time":     1774913909371,   // millisecondes epoch UTC
+    "status":   "reviewed",
+    "tsunami":  0,
+    "sig":      138,             // indice de significativite (0-1000+)
+    "magType":  "ml",
+    "type":     "earthquake",
+    "title":    "M 3.0 - 22 km WNW of Mentone, Texas"
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [-103.832, 31.757, 7.6]  // [longitude, latitude, profondeur_km]
+  },
+  "id": "tx2026ghixus"
+}
+\end{lstlisting}
+
+\begin{warningbox}
+  \textbf{Attention à l'ordre des coordonnées GeoJSON :}
+  \texttt{coordinates} = \texttt{[longitude, latitude, profondeur]}.
+  C'est l'inverse de la convention habituelle (lat, lon) !
+\end{warningbox}
+
+\subsection{Test de l'API en ligne de commande}
+
+\begin{lstlisting}[style=bash, caption={Appel curl vers l'API USGS}]
+# Recuperer les seismes des dernières 24h de magnitude >= 2.5
+curl -s "https://earthquake.usgs.gov/fdsnws/event/1/query?\
+format=geojson&\
+starttime=$(date -u -d "1 day ago" +%Y-%m-%dT%H:%M:%S 2>/dev/null || date -u -v-1d +%Y-%m-%dT%H:%M:%S)&\
+endtime=$(date -u +%Y-%m-%dT%H:%M:%S)&\
+minmagnitude=2.5&\
+limit=5" | python3 -m json.tool | head -80
+\end{lstlisting}
+
+\subsection{Analyse du producer fourni}
+
+Ouvrez le fichier \texttt{producer/earthquake\_producer.py}.
+
+\begin{fournibox}
+  Ce fichier vous est fourni. Il tourne comme un service Docker permanent.
+  Vous n'avez pas à le modifier, mais comprenez-le : il alimente tout le pipeline.
+\end{fournibox}
+
+Repérez les constantes de configuration en haut du fichier :
+
+\begin{lstlisting}[style=python, caption={Constantes du producer}]
+POLL_INTERVAL         = 30   # secondes entre chaque appel USGS
+POLL_OVERLAP_SEC      = 90   # chevauchement entre polls (evite les trous)
+INITIAL_LOOKBACK_DAYS = 7    # premier poll : remonte N jours pour amorcer
+\end{lstlisting}
+
+\begin{conceptbox}{Seeding initial vs polls suivants}
+  Le premier poll remonte \textbf{7 jours} d'historique, ce qui garantit d'avoir
+  immédiatement des données dans Kafka et PostgreSQL même si peu de séismes
+  se sont produits ces dernières minutes.
+
+  Les polls suivants utilisent un chevauchement de 90 secondes (\texttt{POLL\_OVERLAP\_SEC})
+  pour ne pas rater d'événements publiés tardivement par l'API USGS.
+\end{conceptbox}
+
+\begin{warningbox}
+  \textbf{Pourquoi le topic earthquake-raw semble "figé" après le seeding initial ?}
+
+  Le producer tourne correctement et interroge l'API toutes les 30s ---
+  vous pouvez le vérifier avec \texttt{docker logs earthquake-producer}.
+  Mais chaque poll ne regarde que les 90 dernières secondes (\texttt{POLL\_OVERLAP\_SEC}).
+
+  \medskip
+  Globalement, un séisme de magnitude $\geq$ 2.5 se produit environ
+  \textbf{toutes les 15 à 30 minutes}. La probabilité d'en avoir un
+  dans une fenêtre de 90 secondes est d'environ 10\,\%.
+  Il est donc normal d'observer 20 à 30 minutes sans aucun nouvel événement.
+
+  \medskip
+  \textbf{Si vous souhaitez un flux plus dense pour les tests}, vous pouvez
+  temporairement baisser \texttt{MIN\_MAGNITUDE} à \texttt{1.5} dans
+  \texttt{producer/earthquake\_producer.py} et relancer le service
+  (\texttt{docker compose restart earthquake-producer}).
+  Avec M$\geq$1.5, un événement arrive environ toutes les 90 secondes.
+  Pensez à remettre \texttt{2.5} une fois vos tests terminés.
+\end{warningbox}
+
+\subsection*{Questions --- Exploration de l'API}
+
+\begin{enumerate}[label=\textbf{Q\arabic*.}]
+  \item Combien de séismes de magnitude $\geq$ 5.0 se sont produits dans le monde
+        au cours des 7 derniers jours ? (utilisez l'API directement)
+  \item Dans le producer, comment convertit-on le timestamp USGS (en millisecondes epoch)
+        en format ISO 8601 ? Quel module Python est utilisé ?
+  \item Pourquoi le producer écrit-il dans \textbf{deux} destinations (Kafka ET PostgreSQL)
+        plutôt que d'écrire uniquement dans Kafka et de laisser Flink peupler PostgreSQL ?
+  \item La méthode \texttt{ON CONFLICT (event\_id) DO NOTHING} est utilisée lors
+        de l'insertion PostgreSQL. Quel problème cela résout-il face au chevauchement
+        de \texttt{POLL\_OVERLAP\_SEC} ?
+\end{enumerate}
+
+\newpage
+
+% ===========================================================================
+%  PARTIE 2 — DAG AIRFLOW
+% ===========================================================================
+\section{Construction du DAG Airflow}
+
+\subsection{Rôle du DAG dans cette architecture}
+
+Contrairement à une architecture batch classique, \textbf{Airflow n'ingère pas les données}
+dans ce pipeline. L'ingestion est déléguée au service producer qui tourne en permanence.
+
+Le DAG joue uniquement le rôle d'\textbf{initialisateur du pipeline} :
+
+\begin{center}
+\ttfamily\small
+health\_check $\to$ create\_topics $\to$ run\_flink\_job $\to$ start\_tableau\_sink $\to$ verify\_output
+\end{center}
+
+\begin{conceptbox}{Séparation des responsabilités}
+  \begin{itemize}
+    \item \textbf{Producer (Docker, permanent)} : ingestion temps réel, 24h/24
+    \item \textbf{DAG Airflow (déclenché une fois)} : orchestration du démarrage
+  \end{itemize}
+  Cette séparation est essentielle : Airflow est un orchestrateur, pas un moteur de traitement.
+  Il ne doit pas bloquer un thread pendant 30 secondes pour attendre une API externe.
+\end{conceptbox}
+
+\subsection{Démarrage de l'infrastructure}
+
+\begin{lstlisting}[style=bash, caption={Lancement des services Docker}]
+cd infra/
+docker compose up -d
+
+# Attendre que tous les services soient healthy (~3 minutes)
+docker compose ps
+\end{lstlisting}
+
+Vérifiez que ces services sont en état \texttt{healthy} ou \texttt{running} :
+\texttt{kafka}, \texttt{flink-jobmanager}, \texttt{flink-taskmanager},
+\texttt{flink-sql-client}, \texttt{airflow-webserver}, \texttt{airflow-scheduler},
+\texttt{airflow-postgres}, \texttt{earthquake-producer}, \texttt{kafka-to-postgres}.
+
+\begin{warningbox}
+  Les services \texttt{earthquake-producer} et \texttt{kafka-to-postgres} démarrent
+  \textbf{automatiquement} avec Docker Compose (\texttt{restart: unless-stopped}).
+  Vous n'avez pas à les lancer manuellement.
+  La tâche \texttt{start\_tableau\_sink} du DAG se contente de vérifier
+  que \texttt{kafka-to-postgres} est bien en cours d'exécution.
+\end{warningbox}
+
+\subsection{Structure du fichier DAG à créer}
+
+Créez le fichier \texttt{dags/earthquake\_pipeline.py}. Voici la structure attendue :
+
+\begin{lstlisting}[style=python, caption={Squelette du DAG --- dags/earthquake\_pipeline.py}]
+import os
+from datetime import datetime, timedelta
+
+from airflow import DAG
+from airflow.operators.bash import BashOperator
+
+# --- Configuration (lue depuis les variables d'environnement) ---
+KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092")
+
+# --- default_args ---
+default_args = {
+    "owner": "etudiant",
+    "depends_on_past": False,
+    "retries": 2,
+    "retry_delay": timedelta(minutes=1),
+    "execution_timeout": timedelta(minutes=10),
+}
+
+with DAG(
+    dag_id="earthquake_pipeline",
+    default_args=default_args,
+    description="Pipeline seismes : USGS API -> Kafka -> Flink SQL",
+    start_date=datetime(2025, 1, 1),
+    schedule_interval="*/30 * * * *",   # toutes les 30 minutes
+    catchup=False,
+    max_active_runs=1,
+    tags=["earthquake", "kafka", "flink", "tp7"],
+) as dag:
+
+    health_check       = BashOperator(task_id="health_check",       bash_command="...")
+    create_topics      = BashOperator(task_id="create_topics",      bash_command="...")
+    run_flink_job      = BashOperator(task_id="run_flink_job",      bash_command="...")
+    start_tableau_sink = BashOperator(task_id="start_tableau_sink", bash_command="...")
+    verify_output      = BashOperator(task_id="verify_output",      bash_command="...")
+
+    health_check >> create_topics >> run_flink_job >> start_tableau_sink >> verify_output
+\end{lstlisting}
+
+\subsection{Tâche 1 --- health\_check}
+
+Cette tâche vérifie que Kafka et Flink répondent avant de démarrer.
+
+\begin{lstlisting}[style=bash, caption={Commande bash pour health\_check}]
+echo "=== Verification Kafka ==="
+docker exec kafka kafka-topics \
+    --bootstrap-server localhost:9092 --list
+echo "=== Verification Flink ==="
+curl -sf http://flink-jobmanager:8081/overview
+echo "Health check OK"
+\end{lstlisting}
+
+\begin{conceptbox}{Pourquoi un health check ?}
+  En orchestration, il est courant de valider que les services dépendants sont prêts
+  avant d'exécuter des tâches qui en ont besoin. Si Kafka n'est pas encore disponible,
+  la tâche \texttt{create\_topics} échouerait avec un message d'erreur peu clair.
+  Un health check explicite donne un message d'erreur précis et permet un retry propre.
+\end{conceptbox}
+
+\begin{warningbox}
+  \textbf{Réfléchissez :} que se passe-t-il si le health check réussit mais que Kafka
+  tombe \emph{entre} cette tâche et \texttt{create\_topics} ?
+  C'est pour cela que \texttt{retries=2} est configuré dans les \texttt{default\_args} :
+  Airflow peut relancer automatiquement une tâche en échec.
+  Combien de tentatives au total votre tâche a-t-elle le droit d'effectuer ?
+\end{warningbox}
+
+\subsection{Tâche 2 --- create\_topics}
+
+Cette tâche crée les 3 topics Kafka nécessaires au pipeline.
+
+\begin{lstlisting}[style=bash, caption={Création idempotente des topics}]
+for TOPIC in earthquake-raw earthquake-enriched earthquake-alerts; do
+    PARTITIONS=3
+    if [ "$TOPIC" != "earthquake-raw" ]; then PARTITIONS=1; fi
+    docker exec kafka kafka-topics \
+        --bootstrap-server localhost:9092 \
+        --create --if-not-exists \
+        --topic "$TOPIC" \
+        --partitions $PARTITIONS \
+        --replication-factor 1
+    echo "Topic $TOPIC pret."
+done
+\end{lstlisting}
+
+\begin{conceptbox}{Idempotence et \texttt{--if-not-exists}}
+  Le flag \texttt{--if-not-exists} garantit que la commande ne retourne pas d'erreur
+  si le topic existe déjà. C'est la règle d'or en orchestration :
+  \textbf{chaque tâche doit supporter les retries et les re-runs sans effet de bord}.
+\end{conceptbox}
+
+\begin{warningbox}
+  \textbf{Testez par vous-même :} exécutez le DAG une première fois, puis une deuxième.
+  Que se passe-t-il si vous oubliez le flag \texttt{--if-not-exists} ?
+  Kafka renvoie-t-il une erreur ? La tâche échoue-t-elle ?
+  Vérifiez le comportement dans Kafdrop (\url{http://localhost:9090}).
+\end{warningbox}
+
+\subsection{Tâche 3 --- run\_flink\_job}
+
+Cette tâche soumet le fichier SQL au Flink SQL Client.
+
+\begin{lstlisting}[style=bash, caption={Soumission du fichier SQL à Flink}]
+set -eo pipefail
+OUTPUT=$(docker exec flink-sql-client \
+    bin/sql-client.sh -f /opt/flink/jobs/earthquake_processing.sql 2>&1)
+echo "$OUTPUT"
+if echo "$OUTPUT" | grep -q '\[ERROR\]'; then
+    echo "Erreur detectee dans la sortie Flink SQL." >&2
+    exit 1
+fi
+echo "Job Flink SQL soumis avec succes."
+\end{lstlisting}
+
+\begin{infobox}{Airflow orchestre, Flink traite}
+  Airflow ne traite \textbf{pas} la donnée lui-même. Il délègue au cluster Flink
+  via \texttt{docker exec flink-sql-client bin/sql-client.sh -f <fichier>}.
+  Le fichier SQL est monté dans le conteneur via le volume \texttt{flink-jobs/}.
+  Une fois soumis, Flink tourne indépendamment d'Airflow.
+\end{infobox}
+
+\begin{warningbox}
+  \textbf{Problème à anticiper --- slots Flink épuisés.}
+
+  Vous avez implémenté la soumission. Le DAG tourne toutes les 30 minutes.
+  Ouvrez l'interface Flink (\url{http://localhost:8082}) après 3 ou 4 runs.
+  Combien de jobs sont en état \texttt{RUNNING} ?
+
+  \medskip
+  Chaque exécution du DAG soumet un \textbf{nouveau} job sans arrêter le précédent.
+  Au bout de quelques heures, tous vos task slots sont consommés et Flink refuse
+  toute nouvelle soumission.
+
+  \medskip
+  \textbf{Réfléchissez :} avant de soumettre, comment savoir si le job tourne déjà ?
+  Flink expose une API REST sur \texttt{http://flink-jobmanager:8081/jobs/overview}
+  qui liste tous les jobs et leur état (\texttt{RUNNING}, \texttt{FINISHED}, \texttt{FAILED}...).
+
+  \medskip
+  \textbf{Autre piste :} pour identifier un job par son nom dans cette API,
+  encore faut-il lui avoir donné un nom stable. Flink SQL permet de nommer
+  un job via \texttt{SET 'pipeline.name' = 'mon-job'} \emph{avant} l'instruction
+  \texttt{INSERT INTO}. Sans cela, Flink attribue un nom générique impossible à retrouver.
+\end{warningbox}
+
+\subsection{Tâche 4 --- start\_tableau\_sink}
+
+Cette tâche vérifie que le service Docker \texttt{kafka-to-postgres} est bien en cours
+d'exécution. Ce service démarre automatiquement avec \texttt{docker compose up -d} ---
+la tâche joue uniquement le rôle d'un \textbf{health check}.
+
+\begin{lstlisting}[style=bash, caption={Vérification du service kafka-to-postgres}]
+docker ps --filter "name=^/kafka-to-postgres$" --filter "status=running" \
+    | grep -q kafka-to-postgres \
+    && echo "kafka-to-postgres service OK." \
+    || (echo "kafka-to-postgres non demarre -- verifier docker compose." && exit 1)
+\end{lstlisting}
+
+\begin{conceptbox}{Pourquoi un service Docker plutôt qu'une tâche Airflow ?}
+  \texttt{kafka-to-postgres} est une \textbf{boucle infinie} : il consomme Kafka en continu
+  et insère dans PostgreSQL sans jamais s'arrêter.
+  Une tâche Airflow doit \emph{se terminer} --- lancer une boucle infinie en tâche
+  bloquerait le pipeline jusqu'au timeout de 10 minutes, puis la tâche échouerait.
+
+  \medskip
+  La bonne pratique : un démon appartient à Docker Compose (\texttt{restart: unless-stopped}).
+  Airflow, lui, \textbf{orchestre} --- il ne gère pas des processus longue durée.
+\end{conceptbox}
+
+\begin{warningbox}
+  \textbf{Attention aux accolades dans BashOperator.}
+  Airflow utilise Jinja2 pour rendre les \texttt{bash\_command}.
+  Les séquences \texttt{\{\{...\}\}} sont interprétées comme des variables Jinja2.
+  \texttt{--format '\{\{.State.Running\}\}'} (syntaxe Go template de Docker) provoquerait
+  une erreur Jinja2. Utilisez \texttt{docker ps --filter} à la place.
+\end{warningbox}
+
+\subsection{Tâche 5 --- verify\_output}
+
+Cette tâche vérifie que le pipeline produit bien des données dans Kafka
+et que PostgreSQL est peuplé par le producer.
+
+\begin{warningbox}
+  \textbf{Attention au timing.}
+  Flink a besoin de quelques secondes après la soumission pour démarrer
+  et commencer à traiter des messages. Si \texttt{verify\_output} s'exécute
+  immédiatement après \texttt{run\_flink\_job}, il est possible qu'aucun message
+  ne soit encore dans \texttt{earthquake-enriched}.
+
+  \medskip
+  Utilisez l'option \texttt{--timeout-ms} du consumer Kafka pour lui laisser
+  le temps d'attendre des messages. Quelle valeur choisir ?
+  Trop courte, la vérification échoue à tort (faux négatif).
+  Trop longue, la tâche bloque inutilement.
+\end{warningbox}
+
+\begin{lstlisting}[style=bash, caption={Vérification de bout en bout}]
+echo "=== 1/2 Verification Kafka earthquake-enriched ==="
+OUTPUT=$(docker exec kafka kafka-console-consumer \
+    --bootstrap-server localhost:9092 \
+    --topic earthquake-enriched \
+    --from-beginning \
+    --max-messages 3 \
+    --timeout-ms 30000 2>&1)
+echo "$OUTPUT"
+echo "$OUTPUT" | grep -q "Processed a total of [1-9]" || exit 1
+echo "Kafka earthquake-enriched OK."
+
+echo "=== 2/2 Verification PostgreSQL earthquake_events ==="
+COUNT=$(docker exec airflow-postgres psql \
+    -U airflow -d airflow -t -c \
+    "SELECT COUNT(*) FROM earthquake_events;" 2>&1 | tr -d ' ')
+echo "Lignes dans earthquake_events : $COUNT"
+[ "$COUNT" -gt 0 ] || exit 1
+echo "PostgreSQL OK - $COUNT seisme(s) disponible(s) pour Tableau."
+\end{lstlisting}
+
+\subsection{Exécution du DAG}
+
+Une fois le fichier créé dans \texttt{dags/}, Airflow le détecte automatiquement.
+
+\begin{lstlisting}[style=bash, caption={Déclenchement manuel du DAG}]
+# Via le CLI Airflow
+docker exec airflow-webserver airflow dags trigger earthquake_pipeline
+
+# Ou depuis l'interface web : http://localhost:8080
+# Login : admin / admin
+\end{lstlisting}
+
+\subsection*{Questions --- DAG Airflow}
+
+\begin{enumerate}[label=\textbf{Q\arabic*.}]
+  \item Le DAG est planifié avec \texttt{schedule\_interval="*/30 * * * *"}.
+        Pourquoi ce choix est-il cohérent avec la fréquence du producer (\texttt{POLL\_INTERVAL = 30s}) ?
+        En quoi la vérification d'idempotence dans \texttt{run\_flink\_job} est-elle
+        indispensable avec ce schedule automatique ?
+  \item Quelle est la différence entre \texttt{retries=2} dans \texttt{default\_args}
+        et \texttt{execution\_timeout} ? Que se passe-t-il si Flink met
+        12 minutes à soumettre le job ?
+  \item La chaîne de dépendances est \texttt{health\_check >> create\_topics >> run\_flink\_job >> start\_tableau\_sink >> verify\_output}.
+        Pourquoi ces tâches doivent-elles être \textbf{séquentielles} et non parallèles ?
+  \item Dans \texttt{verify\_output}, on utilise \texttt{--timeout-ms 30000} pour le consumer Kafka.
+        Que se passe-t-il si aucun message n'arrive dans les 30 secondes ?
+        Est-ce un vrai échec de pipeline ou un faux négatif possible ? Expliquez.
+\end{enumerate}
+
+\subsection*{Exercice --- Ajout d'une tâche de monitoring}
+
+Ajoutez une cinquième tâche \texttt{print\_summary} \textbf{après} \texttt{verify\_output}
+qui affiche un résumé lisible dans les logs Airflow :
+
+\begin{itemize}
+  \item le nombre de séismes dans PostgreSQL
+  \item le nombre de topics Kafka et leurs offsets courants
+  \item l'état des jobs Flink (via \texttt{curl http://flink-jobmanager:8081/jobs})
+\end{itemize}
+
+\newpage
+
+% ===========================================================================
+%  PARTIE 3 — TRAITEMENT FLINK SQL
+% ===========================================================================
+\section{Traitement avec Flink SQL}
+
+\subsection{Pourquoi enrichir sans fenêtre temporelle ?}
+
+Les séismes sont des événements rares : globalement, un séisme de magnitude $\geq$ 2.5
+se produit environ toutes les 15 à 30 minutes.
+
+\begin{warningbox}
+  Si vous utilisez une fenêtre \textbf{TUMBLE de 60 secondes}, la fenêtre se ferme
+  après 60s sans recevoir de séisme et produit un résultat vide --- ou pire,
+  ne produit rien du tout. Le topic de sortie restera silencieux pendant des minutes.
+
+  \textbf{Solution} : enrichir chaque événement \emph{immédiatement} à l'arrivée,
+  sans attendre la fermeture d'une fenêtre.
+\end{warningbox}
+
+\begin{conceptbox}{Streaming stateless vs Streaming avec fenêtre}
+  \begin{itemize}
+    \item \textbf{Avec fenêtre (TUMBLE/HOP)} : Flink accumule les messages pendant
+          $\Delta$, puis émet un résultat agrégé à la fermeture.
+          Utile pour : statistiques par période, comptages, moyennes temporelles.
+    \item \textbf{Sans fenêtre (INSERT INTO ... SELECT sans GROUP BY)} :
+          chaque message entrant génère \textbf{immédiatement} un message sortant.
+          C'est un opérateur \textit{stateless} : latence quasi nulle.
+          Utile pour : enrichissement, filtrage, transformation champ par champ.
+  \end{itemize}
+  Dans ce TP, nous utilisons l'approche \textbf{sans fenêtre} car les séismes
+  sont rares et nous voulons voir chaque événement enrichi immédiatement.
+\end{conceptbox}
+
+\subsection{Connexion au SQL Client (optionnel)}
+
+Si vous souhaitez tester des requêtes interactivement avant d'écrire le fichier SQL :
+
+\begin{lstlisting}[style=bash, caption={Accès au Flink SQL Client interactif}]
+docker exec -it flink-sql-client bin/sql-client.sh
+
+# Le prompt Flink SQL apparait :
+# Flink SQL>
+\end{lstlisting}
+
+\subsection{Table SOURCE --- earthquake\_raw}
+
+Créez d'abord la table qui lit le topic Kafka \texttt{earthquake-raw}.
+Elle contient les données brutes publiées par le producer.
+
+\begin{lstlisting}[style=sql, caption={Table source --- earthquake\_raw}]
+CREATE TABLE IF NOT EXISTS earthquake_raw (
+    event_id     STRING,
+    magnitude    DOUBLE,
+    mag_type     STRING,
+    place        STRING,
+    event_time   STRING,
+    latitude     DOUBLE,
+    longitude    DOUBLE,
+    depth_km     DOUBLE,
+    significance INT,
+    tsunami      INT,
+    status       STRING,
+    type         STRING,
+    title        STRING,
+    ingested_at  STRING,
+    proc_time    AS PROCTIME()
+) WITH (
+    'connector'                    = 'kafka',
+    'topic'                        = 'earthquake-raw',
+    'properties.bootstrap.servers' = 'kafka:29092',
+    'scan.startup.mode'            = 'earliest-offset',
+    'format'                       = 'json'
+);
+\end{lstlisting}
+
+\begin{conceptbox}{PROCTIME() --- Temps de traitement}
+  \texttt{PROCTIME()} est une colonne virtuelle générée par Flink,
+  représentant l'horloge système au moment où Flink traite le message.
+  Elle avance toujours, indépendamment des données.
+  Dans ce TP, elle est définie dans la table source mais
+  \textbf{n'est pas utilisée dans les jobs sans fenêtre}.
+  Elle serait utilisée si vous ajoutiez un job TUMBLE ultérieurement.
+\end{conceptbox}
+
+\subsection{Table SINK 1 --- earthquake\_enriched}
+
+Créez la table de sortie pour les séismes enrichis.
+
+\begin{lstlisting}[style=sql, caption={Table sink --- earthquake\_enriched}]
+CREATE TABLE IF NOT EXISTS earthquake_enriched (
+    event_id        STRING,
+    magnitude       DOUBLE,
+    mag_type        STRING,
+    place           STRING,
+    event_time      STRING,
+    latitude        DOUBLE,
+    longitude       DOUBLE,
+    depth_km        DOUBLE,
+    significance    INT,
+    tsunami         INT,
+    status          STRING,
+    title           STRING,
+    depth_category  STRING,
+    severity        STRING,
+    is_significant  INT,
+    processed_at    STRING
+) WITH (
+    'connector'                    = 'kafka',
+    'topic'                        = 'earthquake-enriched',
+    'properties.bootstrap.servers' = 'kafka:29092',
+    'format'                       = 'json'
+);
+\end{lstlisting}
+
+\subsection{Table SINK 2 --- earthquake\_alerts}
+
+\begin{lstlisting}[style=sql, caption={Table sink --- earthquake\_alerts}]
+CREATE TABLE IF NOT EXISTS earthquake_alerts (
+    event_id     STRING,
+    event_time   STRING,
+    magnitude    DOUBLE,
+    place        STRING,
+    depth_km     DOUBLE,
+    tsunami      INT,
+    severity     STRING,
+    alert_time   STRING
+) WITH (
+    'connector'                    = 'kafka',
+    'topic'                        = 'earthquake-alerts',
+    'properties.bootstrap.servers' = 'kafka:29092',
+    'format'                       = 'json'
+);
+\end{lstlisting}
+
+\subsection{Job 1 --- Enrichissement temps réel (sans fenêtre)}
+
+Ce job lit chaque événement de \texttt{earthquake-raw} et ajoute trois champs calculés.
+Chaque séisme entrant produit \textbf{immédiatement} une ligne enrichie en sortie.
+
+\begin{warningbox}
+  \textbf{Nommez vos jobs.}
+  Par défaut, Flink attribue un nom générique à chaque job soumis
+  (\texttt{insert-into\_earthquake\_enriched\_1}, etc.).
+  Si vous soumettez le fichier SQL plusieurs fois, vous ne pouvez pas distinguer
+  les jobs entre eux dans l'interface ou l'API REST.
+
+  \medskip
+  Avant chaque instruction \texttt{INSERT INTO}, ajoutez :
+  \begin{center}
+    \texttt{SET 'pipeline.name' = 'nom-stable-du-job';}
+  \end{center}
+  Ce nom stable est ce qui permet à la tâche \texttt{run\_flink\_job} du DAG
+  de vérifier si le job est déjà en cours d'exécution.
+\end{warningbox}
+
+\begin{lstlisting}[style=sql, caption={Job 1 --- enrichissement sans fenêtre}]
+INSERT INTO earthquake_enriched
+SELECT
+    event_id,
+    magnitude,
+    mag_type,
+    place,
+    event_time,
+    latitude,
+    longitude,
+    depth_km,
+    significance,
+    tsunami,
+    status,
+    title,
+
+    -- Categorie de profondeur (classification sismologique standard)
+    CASE
+        WHEN depth_km < 70  THEN 'Superficiel (0-70 km)'
+        WHEN depth_km < 300 THEN 'Intermédiaire (70-300 km)'
+        ELSE                     'Profond (300+ km)'
+    END AS depth_category,
+
+    -- Niveau de sévérité
+    CASE
+        WHEN tsunami = 1      THEN 'TSUNAMI'
+        WHEN magnitude >= 8.0 THEN 'Dévastateur'
+        WHEN magnitude >= 7.0 THEN 'Majeur'
+        WHEN magnitude >= 6.0 THEN 'Fort'
+        WHEN magnitude >= 5.0 THEN 'Modéré'
+        ELSE                       'Mineur'
+    END AS severity,
+
+    -- Seisme significatif selon le seuil USGS (sig > 500)
+    CASE WHEN significance > 500 THEN 1 ELSE 0 END AS is_significant,
+
+    CAST(CURRENT_TIMESTAMP AS STRING) AS processed_at
+
+FROM earthquake_raw;
+\end{lstlisting}
+
+\subsection{Job 2 --- Alertes temps réel (filtre sans fenêtre)}
+
+Ce job filtre les séismes dangereux. Seuls les séismes de magnitude $\geq$ 5.0
+ou avec alerte tsunami sont transmis dans \texttt{earthquake-alerts}.
+
+\begin{lstlisting}[style=sql, caption={Job 2 --- alertes avec filtre WHERE}]
+INSERT INTO earthquake_alerts
+SELECT
+    event_id,
+    event_time,
+    magnitude,
+    place,
+    depth_km,
+    tsunami,
+    CASE
+        WHEN tsunami = 1      THEN 'TSUNAMI'
+        WHEN magnitude >= 8.0 THEN 'Dévastateur'
+        WHEN magnitude >= 7.0 THEN 'Majeur'
+        WHEN magnitude >= 6.0 THEN 'Fort'
+        ELSE                       'Modéré'
+    END AS severity,
+    CAST(CURRENT_TIMESTAMP AS STRING) AS alert_time
+FROM earthquake_raw
+WHERE magnitude >= 5.0 OR tsunami = 1;
+\end{lstlisting}
+
+\begin{conceptbox}{INSERT stateless --- latence quasi nulle}
+  Sans \texttt{GROUP BY} ni fenêtre temporelle, Flink ne maintient \textbf{aucun état}
+  entre deux messages. Chaque message est traité indépendamment et produit immédiatement
+  un résultat (si la clause \texttt{WHERE} est vraie pour le Job 2).
+  La latence est typiquement de quelques millisecondes.
+
+  Cette propriété simplifie aussi la reprise sur erreur : Flink peut reprendre
+  depuis n'importe quel offset Kafka sans avoir à reconstruire un état accumulé.
+\end{conceptbox}
+
+\subsection{Assemblage dans le fichier SQL}
+
+Le fichier \texttt{flink-jobs/earthquake\_processing.sql} doit contenir les blocs
+dans cet ordre :
+
+\begin{enumerate}
+  \item \texttt{CREATE TABLE IF NOT EXISTS earthquake\_raw ...}
+  \item \texttt{CREATE TABLE IF NOT EXISTS earthquake\_enriched ...}
+  \item \texttt{CREATE TABLE IF NOT EXISTS earthquake\_alerts ...}
+  \item (optionnel) \texttt{SET 'pipeline.name' = '...';}
+  \item \texttt{INSERT INTO earthquake\_enriched SELECT ...}
+  \item (optionnel) \texttt{SET 'pipeline.name' = '...';}
+  \item \texttt{INSERT INTO earthquake\_alerts SELECT ... WHERE ...}
+\end{enumerate}
+
+Le flag \texttt{IF NOT EXISTS} garantit que le fichier peut être soumis plusieurs fois
+sans erreur (idempotence).
+
+\begin{warningbox}
+  \textbf{Le piège du re-run.}
+  Vous soumettez votre fichier SQL, tout fonctionne. Vous déclenchez le DAG une seconde fois.
+  Ouvrez l'UI Flink (\url{http://localhost:8082}) : combien de jobs \texttt{RUNNING} voyez-vous ?
+
+  \medskip
+  Si vous en voyez 4 au lieu de 2, c'est que votre tâche \texttt{run\_flink\_job}
+  n'est pas encore idempotente. Retournez à la section précédente et implémentez
+  la vérification via l'API REST Flink avant toute soumission.
+  Les tests unitaires du dossier \texttt{tests/} vous aideront à valider votre implémentation.
+\end{warningbox}
+
+\subsection{Vérification des jobs Flink}
+
+\begin{lstlisting}[style=bash, caption={Vérification des jobs via l'API REST Flink}]
+# Liste des jobs en cours d'execution
+curl -s http://localhost:8082/jobs | python3 -m json.tool
+
+# Interface web Flink : http://localhost:8082
+
+# Consommer quelques messages depuis earthquake-enriched
+docker exec kafka kafka-console-consumer \
+    --bootstrap-server localhost:9092 \
+    --topic earthquake-enriched \
+    --from-beginning \
+    --max-messages 3 \
+    --timeout-ms 15000
+\end{lstlisting}
+
+\subsection*{Questions --- Flink SQL}
+
+\begin{enumerate}[label=\textbf{Q\arabic*.}]
+  \item Un séisme de magnitude 7.5 \textbf{avec} alerte tsunami arrive.
+        Quelle valeur aura le champ \texttt{severity} dans \texttt{earthquake-enriched} ?
+        Et dans \texttt{earthquake-alerts} ? Expliquez pourquoi les deux valeurs peuvent différer.
+  \item Le job d'enrichissement n'a \textbf{pas} de clause \texttt{WHERE}.
+        Cela signifie que tous les séismes, même de magnitude 2.5, passent dans
+        \texttt{earthquake-enriched}. Quel avantage y a-t-il à garder tous les événements
+        dans ce topic plutôt que de filtrer ?
+  \item Dans la table \texttt{earthquake\_raw}, pourquoi déclare-t-on
+        \texttt{scan.startup.mode = 'earliest-offset'} ?
+        Que se passerait-il si on utilisait \texttt{'latest-offset'} à la place ?
+  \item \texttt{CAST(CURRENT\_TIMESTAMP AS STRING)} génère l'heure de \textbf{traitement Flink},
+        pas l'heure du séisme. Dans quel cas ces deux valeurs seraient-elles très différentes ?
+        Quel champ du message source représente l'heure réelle du séisme ?
+\end{enumerate}
+
+\subsection*{Exercice --- Job 3) : statistiques par fenêtre}
+
+Ajoutez un Job 3 qui calcule des statistiques globales par \textbf{fenêtre TUMBLE de 5 minutes}.
+
+\begin{warningbox}
+  Attention : avec des séismes rares ($\sim$1 toutes les 15--30 min), la plupart des
+  fenêtres de 5 minutes seront \textbf{vides}. Ce job ne produira des résultats
+  que lorsqu'un séisme arrive. C'est normal, et c'est pourquoi les Jobs 1 et 2
+  (sans fenêtre) sont préférables pour un monitoring temps réel.
+\end{warningbox}
+
+Colonnes attendues dans la table sink \texttt{earthquake\_stats} :
+\texttt{window\_start}, \texttt{window\_end}, \texttt{nb\_earthquakes},
+\texttt{mag\_avg}, \texttt{mag\_max}, \texttt{mag\_min}, \texttt{nb\_tsunami}.
+
+\newpage
+
+% ===========================================================================
+%  PARTIE 4 — MONITORING
+% ===========================================================================
+\section{Monitoring et vérification}
+
+\subsection{Kafdrop --- Interface Kafka}
+
+Kafdrop est une interface web légère pour inspecter les topics et messages Kafka.
+
+\begin{infobox}{Accès à Kafdrop}
+  \url{http://localhost:9090}
+\end{infobox}
+
+\textbf{Vérifications à effectuer :}
+\begin{enumerate}
+  \item Vérifiez que les 3 topics existent :
+        \texttt{earthquake-raw}, \texttt{earthquake-enriched}, \texttt{earthquake-alerts}.
+  \item Inspectez quelques messages dans \texttt{earthquake-raw} :
+        les coordonnées et la magnitude sont-elles cohérentes ?
+  \item Combien de partitions a le topic \texttt{earthquake-raw} (3 partitions) ?
+        Pourquoi ce choix par rapport aux topics de sortie (1 partition) ?
+  \item Inspectez un message dans \texttt{earthquake-enriched} :
+        les champs \texttt{depth\_category}, \texttt{severity} et \texttt{is\_significant}
+        sont-ils correctement calculés ?
+\end{enumerate}
+
+\subsection{Flink Web UI}
+
+\begin{infobox}{Accès au Flink Dashboard}
+  \url{http://localhost:8082}
+\end{infobox}
+
+\textbf{Vérifications à effectuer :}
+\begin{enumerate}
+  \item Vérifiez que les 2 jobs (enrichissement + alertes) sont en état \texttt{RUNNING}.
+  \item Inspectez le graphe d'exécution du Job 1 : identifiez les opérateurs
+        \textit{Source}, \textit{Calc}, \textit{Sink}.
+  \item Vérifiez le compteur \textit{Records Sent} : est-il en train d'augmenter
+        lorsque le producer publie de nouveaux séismes ?
+\end{enumerate}
+
+\subsection{Airflow Web UI}
+
+\begin{infobox}{Accès à Airflow}
+  \url{http://localhost:8080} --- Login : \texttt{admin} / \texttt{admin}
+\end{infobox}
+
+\textbf{Vérifications à effectuer :}
+\begin{enumerate}
+  \item Vérifiez que le DAG \texttt{earthquake\_pipeline} est visible dans la liste.
+  \item Déclenchez le DAG manuellement et observez les tâches passer au vert une par une.
+  \item Inspectez les logs de \texttt{verify\_output} :
+        combien de séismes sont disponibles dans PostgreSQL ?
+\end{enumerate}
+
+\subsection{Vérification PostgreSQL}
+
+\begin{lstlisting}[style=bash, caption={Requêtes de vérification PostgreSQL}]
+# Connexion directe au conteneur PostgreSQL
+docker exec -it airflow-postgres psql -U airflow -d airflow
+
+# Compter les séismes
+SELECT COUNT(*) FROM earthquake_events;
+
+# Les 5 séismes les plus récents
+SELECT event_id, magnitude, place, event_time
+FROM earthquake_events
+ORDER BY ingested_at DESC
+LIMIT 5;
+
+# Distribution par sévérité (à calculer en SQL)
+SELECT
+    CASE
+        WHEN magnitude >= 7.0 THEN 'Majeur+'
+        WHEN magnitude >= 5.0 THEN 'Modere'
+        ELSE                       'Mineur'
+    END AS categorie,
+    COUNT(*) AS nb
+FROM earthquake_events
+GROUP BY 1
+ORDER BY 2 DESC;
+\end{lstlisting}
+
+\newpage
+
+% ===========================================================================
+%  PARTIE 5 (BONUS) — TABLEAU
+% ===========================================================================
+\section{Visualisation avec Tableau Desktop}
+
+\subsection{Connexion PostgreSQL $\to$ Tableau}
+
+PostgreSQL sert de pont entre le pipeline temps réel et Tableau Desktop.
+Le producer y écrit les séismes en continu. Tableau peut rafraîchir sa connexion
+à tout moment pour voir les derniers événements.
+
+\begin{infobox}{Paramètres de connexion Tableau}
+  \begin{tabular}{ll}
+    \textbf{Type}     & PostgreSQL \\
+    \textbf{Serveur}  & \texttt{localhost} \\
+    \textbf{Port}     & \texttt{5433} (port externe exposé par Docker) \\
+    \textbf{Base}     & \texttt{earthquake} \\
+    \textbf{Login}    & \texttt{airflow} \\
+    \textbf{Mot de passe} & \texttt{airflow} \\
+    \textbf{Tables}   & \texttt{earthquake\_alerts}, \texttt{earthquake\_stats} \\
+  \end{tabular}
+\end{infobox}
+
+\begin{warningbox}
+  Le port \textbf{5433} (et non 5432) est utilisé car le port 5432 est réservé
+  à une éventuelle instance PostgreSQL locale sur votre machine.
+  À l'intérieur du réseau Docker, les services communiquent sur le port 5432.
+\end{warningbox}
+
+\subsection{Dashboard proposé}
+
+Créez un dashboard Tableau avec les visualisations suivantes :
+
+\begin{enumerate}
+  \item \textbf{Carte mondiale} : utilisez les champs \texttt{longitude} et \texttt{latitude}.
+        Taille des points proportionnelle à la magnitude.
+        Couleur selon le champ \texttt{tsunami} (1 = alerte rouge, 0 = bleu).
+
+  \item \textbf{Distribution des magnitudes} : histogramme par tranches de 0.5
+        (2.5--3.0, 3.0--3.5, etc.).
+
+  \item \textbf{Séismes par région} : regroupez par les 20 premiers caractères
+        du champ \texttt{place} pour obtenir une distribution géographique approximative.
+
+  \item \textbf{Top 10 des séismes les plus forts} : tableau trié par magnitude décroissante
+        avec les colonnes \texttt{magnitude}, \texttt{place}, \texttt{event\_time}, \texttt{depth\_km}.
+\end{enumerate}
+
+\subsection{Rafraîchissement des données}
+
+Tableau Desktop ne rafraîchit pas automatiquement les données depuis PostgreSQL.
+Pour voir les nouveaux séismes :
+
+\begin{itemize}
+  \item Cliquez sur \textbf{Données > Actualiser} dans Tableau.
+  \item Ou utilisez \textbf{F5} sur la vue (selon la version).
+\end{itemize}
+
+\begin{conceptbox}{Pourquoi PostgreSQL plutôt qu'une connexion directe à Kafka ?}
+  Tableau Desktop ne dispose pas de connecteur natif pour les topics Kafka.
+  PostgreSQL sert de \textbf{matérialisation} du flux : au lieu de consommer
+  directement Kafka (streaming), Tableau interroge une table SQL classique
+  (batch). Cette approche est très courante en production :
+  on appelle cela un \textit{Lambda Architecture} ou une \textit{table matérialisée}.
+\end{conceptbox}
+
+\subsection*{Questions --- Tableau}
+
+\begin{enumerate}[label=\textbf{Q\arabic*.}]
+  \item La base \texttt{earthquake} (peuplée par \texttt{kafka-to-postgres}) contient
+        les tables \texttt{earthquake\_alerts} et \texttt{earthquake\_stats}.
+        Ces tables viennent de Flink --- quels champs enrichis y trouvez-vous
+        que vous ne trouveriez pas dans \texttt{earthquake\_events} (peuplée par le producer) ?
+  \item Le service \texttt{kafka-to-postgres} utilise \texttt{auto\_offset\_reset='earliest'}.
+        Que se passe-t-il si vous relancez la stack (\texttt{docker compose down -v}) ?
+        Les données PostgreSQL sont-elles perdues ? Le service re-consomme-t-il depuis le début ?
+  \item Quel est l'intervalle de rafraîchissement minimum raisonnable pour Tableau
+        dans ce contexte ? Justifiez en vous appuyant sur la fréquence de publication
+        du producer (\texttt{POLL\_INTERVAL = 30s}).
+\end{enumerate}
+
+\newpage
+
+% ===========================================================================
+%  PARTIE 5 — TESTS UNITAIRES
+% ===========================================================================
+\section{Tests unitaires du pipeline}
+
+\subsection{Philosophie des tests}
+
+Dans un pipeline de données temps réel, les tests ne peuvent pas dépendre
+de Kafka, Flink ou PostgreSQL pour s'exécuter rapidement.
+On distingue deux niveaux :
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+  \toprule
+  \textbf{Niveau} & \textbf{Ce qu'il teste} \\
+  \midrule
+  \textbf{Tests unitaires} & Logique Python pure (parsing, calculs, retries) --- sans services externes \\
+  \textbf{Tests d'intégration} & Flux bout en bout avec Kafka, Flink et PostgreSQL réels \\
+  \bottomrule
+\end{tabularx}
+\end{center}
+
+Dans ce TP, nous implémentons des \textbf{tests unitaires} dans \texttt{tests/}.
+
+\subsection{Structure du dossier tests}
+
+\begin{lstlisting}[style=bash, caption={Arborescence des tests}]
+tests/
+  __init__.py
+  test_dag.py        # structure et configuration du DAG Airflow
+  test_producer.py   # logique de parsing et de retry du producer
+\end{lstlisting}
+
+\subsection{Tests du DAG Airflow (\texttt{test\_dag.py})}
+
+Ces tests utilisent le \texttt{DagBag} d'Airflow pour charger et inspecter le DAG
+\textbf{sans exécuter aucune tâche}.
+
+\begin{lstlisting}[style=python, caption={Exemple de test de structure du DAG}]
+from airflow.models import DagBag
+
+def test_dag_loads_without_errors():
+    dagbag = DagBag(dag_folder="dags", include_examples=False)
+    assert "dags/earthquake_pipeline.py" not in dagbag.import_errors
+
+def test_dag_schedule(dag):
+    assert dag.schedule_interval == "*/30 * * * *"
+
+def test_linear_chain(dag):
+    chain = ["health_check", "create_topics", "run_flink_job", "verify_output"]
+    for i, task_id in enumerate(chain[:-1]):
+        task = dag.get_task(task_id)
+        downstream_ids = {t.task_id for t in task.downstream_list}
+        assert chain[i + 1] in downstream_ids
+\end{lstlisting}
+
+\textbf{Tests couverts :}
+\begin{itemize}
+  \item Chargement du DAG sans erreur de parsing
+  \item Schedule (\texttt{*/30 * * * *}), \texttt{catchup=False}, \texttt{max\_active\_runs=1}
+  \item Présence et nombre exact des 4 tâches
+  \item Chaîne de dépendances linéaire complète
+  \item \texttt{retries=2} sur chaque tâche
+  \item Paramètre \texttt{sql\_file} de la tâche \texttt{run\_flink\_job}
+\end{itemize}
+
+\subsection{Tests du producer (\texttt{test\_producer.py})}
+
+Les dépendances \texttt{kafka}, \texttt{psycopg2} et \texttt{requests} sont
+\textbf{mockées} avant l'import du module pour éviter toute dépendance réseau.
+
+\begin{lstlisting}[style=python, caption={Mock des dépendances externes}]
+import sys, types
+from unittest.mock import MagicMock
+
+kafka_mock = types.ModuleType("kafka")
+kafka_mock.KafkaProducer = MagicMock
+sys.modules.setdefault("kafka", kafka_mock)
+
+import producer.earthquake_producer as ep
+\end{lstlisting}
+
+\textbf{Tests couverts :}
+\begin{itemize}
+  \item \texttt{\_parse\_feature} : coordonnées, timestamp ISO 8601, significance,
+        fallback \texttt{code} $\to$ \texttt{id}, gestion des \texttt{None}
+  \item \texttt{\_wait\_for\_kafka} : succès immédiat + \texttt{RuntimeError} après \texttt{max\_retries}
+  \item \texttt{\_wait\_for\_postgres} : idem
+\end{itemize}
+
+\subsection{Exécution des tests}
+
+\begin{lstlisting}[style=bash, caption={Lancement des tests avec uv}]
+# Installer les dependances de test
+uv pip install pytest apache-airflow==2.10.4
+
+# Lancer tous les tests
+uv run pytest tests/ -v
+
+# Lancer uniquement les tests du DAG
+uv run pytest tests/test_dag.py -v
+\end{lstlisting}
+
+\begin{warningbox}
+  \texttt{uv run} utilise le Python défini dans \texttt{.python-version} (3.12).
+  Si \texttt{apache-airflow} n'est pas installé dans le venv actif,
+  \texttt{test\_dag.py} échoue avec \texttt{ModuleNotFoundError: No module named 'airflow'}.
+  Vérifiez que votre venv est activé avant de lancer les tests.
+\end{warningbox}
+
+\subsection*{Questions --- Tests}
+
+\begin{enumerate}[label=\textbf{Q\arabic*.}]
+  \item Les tests du DAG n'exécutent aucune tâche Bash.
+        Quelle limite cela implique-t-il ? Quel type de bug ne sera pas détecté
+        par ces tests mais le serait par un test d'intégration ?
+  \item Dans \texttt{test\_producer.py}, pourquoi mocke-t-on \texttt{kafka} et \texttt{psycopg2}
+        \textbf{avant} d'importer le module producer ?
+        Que se passerait-il si on les mockait après l'import ?
+  \item La fonction \texttt{\_wait\_for\_kafka} effectue \texttt{max\_retries} tentatives
+        avec un délai \texttt{delay} entre chaque. Dans les tests, on passe \texttt{delay=0}.
+        Pourquoi est-ce important pour la rapidité des tests ?
+\end{enumerate}
+
+\newpage
+
+% ===========================================================================
+%  QUESTIONS DE RÉFLEXION
+% ===========================================================================
+\section*{Questions de réflexion}
+\addcontentsline{toc}{section}{Questions de réflexion}
+
+Ces questions n'ont pas de réponse unique --- elles visent à approfondir
+votre compréhension des architectures de streaming.
+
+\begin{enumerate}[label=\textbf{R\arabic*.}]
+
+  \item \textbf{Temps réel vs orchestration batch.}
+        Dans cette architecture, le producer tourne en permanence sans passer par Airflow.
+        Si vous deviez utiliser Airflow pour l'ingestion (déclenché toutes les 15 minutes),
+        quels problèmes cela poserait-il par rapport à un service continu ?
+        Pensez aux notions de latence, de perte de données entre deux runs,
+        et de charge sur l'API USGS.
+
+  \item \textbf{Event Time vs Processing Time.}
+        Un séisme peut être détecté par les sismographes et transmis à l'API
+        avec un délai de quelques minutes.
+        Le champ \texttt{processed\_at} calculé par Flink correspond au temps de traitement,
+        pas au temps réel du séisme. Dans quel scénario cette différence serait-elle critique ?
+        Comment la notion de \textit{watermark} et d'\textit{event time} permettrait-elle
+        de corriger cela ?
+
+  \item \textbf{Idempotence de bout en bout.}
+        Le producer utilise \texttt{ON CONFLICT (event\_id) DO NOTHING} pour PostgreSQL.
+        Flink, lui, peut re-traiter des messages depuis \texttt{earliest-offset} à chaque restart.
+        Que se passe-t-il dans \texttt{earthquake-enriched} si Flink redémarre ?
+        Y a-t-il des doublons ? Comment un consommateur Flink devrait-il se comporter
+        pour être réellement idempotent ?
+
+  \item \textbf{Passage à l'échelle.}
+        Ce pipeline ingère aujourd'hui quelques dizaines de séismes par heure.
+        Si vous deviez ingérer en temps réel 1 million d'événements par seconde
+        (par exemple : tous les capteurs IoT d'un réseau sismique mondial),
+        quels composants de l'architecture devriez-vous redimensionner ?
+        Quels paramètres Kafka (partitions, replication-factor, retention)
+        et Flink (parallelism, checkpointing) modifieriez-vous ?
+
+\end{enumerate}
+
+% ===========================================================================
+%  ANNEXE — SCHÉMA DES TOPICS KAFKA
+% ===========================================================================
+\newpage
+\appendix
+\section{Schéma des messages Kafka}
+
+\subsection{Topic : earthquake-raw}
+
+Publié par le \textbf{producer} depuis l'API USGS.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{llX}
+  \toprule
+  \textbf{Champ} & \textbf{Type} & \textbf{Description} \\
+  \midrule
+  \texttt{event\_id}   & STRING & Identifiant unique USGS \\
+  \texttt{magnitude}   & DOUBLE & Magnitude du séisme \\
+  \texttt{mag\_type}   & STRING & Type de magnitude (\texttt{ml}, \texttt{mw}, ...) \\
+  \texttt{place}       & STRING & Description du lieu \\
+  \texttt{event\_time} & STRING & Date/heure ISO 8601 UTC du séisme \\
+  \texttt{latitude}    & DOUBLE & Latitude en degrés décimaux \\
+  \texttt{longitude}   & DOUBLE & Longitude en degrés décimaux \\
+  \texttt{depth\_km}   & DOUBLE & Profondeur du foyer en km \\
+  \texttt{significance}& INT    & Indice USGS 0--1000+ \\
+  \texttt{tsunami}     & INT    & 1 si alerte tsunami, 0 sinon \\
+  \texttt{status}      & STRING & \texttt{automatic} ou \texttt{reviewed} \\
+  \texttt{type}        & STRING & Type d'événement (ex: \texttt{earthquake}) \\
+  \texttt{title}       & STRING & Titre complet USGS \\
+  \texttt{ingested\_at}& STRING & Timestamp d'ingestion ISO 8601 UTC \\
+  \bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Topic : earthquake-enriched}
+
+Produit par \textbf{Flink Job 1} --- contient tous les champs de \texttt{earthquake-raw}
+plus les champs calculés.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{llX}
+  \toprule
+  \textbf{Champ} & \textbf{Type} & \textbf{Description} \\
+  \midrule
+  \multicolumn{3}{l}{\textit{(mêmes champs que earthquake-raw, sauf type et ingested\_at)}} \\
+  \midrule
+  \texttt{depth\_category} & STRING & \texttt{Superficiel (0-70 km)} / \texttt{Intermédiaire (70-300 km)} / \texttt{Profond (300+ km)} \\
+  \texttt{severity}        & STRING & \texttt{TSUNAMI} / \texttt{Dévastateur} / \texttt{Majeur} / \texttt{Fort} / \texttt{Modéré} / \texttt{Mineur} \\
+  \texttt{is\_significant} & INT    & 1 si \texttt{significance > 500}, sinon 0 \\
+  \texttt{processed\_at}   & STRING & Timestamp de traitement Flink (ISO 8601) \\
+  \bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Topic : earthquake-alerts}
+
+Produit par \textbf{Flink Job 2} --- uniquement les séismes $\geq$ 5.0 ou avec tsunami.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{llX}
+  \toprule
+  \textbf{Champ} & \textbf{Type} & \textbf{Description} \\
+  \midrule
+  \texttt{event\_id}   & STRING & Identifiant USGS \\
+  \texttt{event\_time} & STRING & Heure du séisme (ISO 8601) \\
+  \texttt{magnitude}   & DOUBLE & Magnitude \\
+  \texttt{place}       & STRING & Lieu \\
+  \texttt{depth\_km}   & DOUBLE & Profondeur \\
+  \texttt{tsunami}     & INT    & 1 si alerte tsunami \\
+  \texttt{severity}    & STRING & \texttt{TSUNAMI} / \texttt{Dévastateur} / \texttt{Majeur} / \texttt{Fort} / \texttt{Modéré} \\
+  \texttt{alert\_time} & STRING & Heure d'émission de l'alerte (ISO 8601) \\
+  \bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Table PostgreSQL : earthquake\_events}
+
+Peuplée en temps réel par le \textbf{producer}. Utilisée par \textbf{Tableau Desktop}.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{llX}
+  \toprule
+  \textbf{Colonne} & \textbf{Type} & \textbf{Description} \\
+  \midrule
+  \texttt{event\_id}   & TEXT PRIMARY KEY & Identifiant unique USGS \\
+  \texttt{magnitude}   & DOUBLE PRECISION & Magnitude du séisme \\
+  \texttt{mag\_type}   & TEXT & Type de magnitude \\
+  \texttt{place}       & TEXT & Description du lieu \\
+  \texttt{event\_time} & TEXT & Date/heure ISO 8601 UTC \\
+  \texttt{latitude}    & DOUBLE PRECISION & Latitude \\
+  \texttt{longitude}   & DOUBLE PRECISION & Longitude \\
+  \texttt{depth\_km}   & DOUBLE PRECISION & Profondeur du foyer en km \\
+  \texttt{significance}& INT & Indice USGS 0--1000+ \\
+  \texttt{tsunami}     & INT & 1 si alerte tsunami \\
+  \texttt{status}      & TEXT & \texttt{automatic} ou \texttt{reviewed} \\
+  \texttt{type}        & TEXT & Type d'événement \\
+  \texttt{title}       & TEXT & Titre complet USGS \\
+  \texttt{ingested\_at}& TEXT & Timestamp d'ingestion ISO 8601 UTC \\
+  \bottomrule
+\end{tabularx}
+\end{center}
+
+\end{document}

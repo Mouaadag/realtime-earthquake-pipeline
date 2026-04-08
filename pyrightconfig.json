@@ -1,0 +1,13 @@
+{
+  "include": [
+    "dags",
+    "producer",
+    "scripts"
+  ],
+  "exclude": [
+    "infra",
+    "docs"
+  ],
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic"
+}

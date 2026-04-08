@@ -1,0 +1,533 @@
+x-airflow-build: &airflow_build
+  context: .
+  dockerfile_inline: |
+    FROM apache/airflow:2.10.4-python3.11
+    USER root
+    RUN apt-get update -qq && \
+        apt-get install -y --no-install-recommends docker.io procps && \
+        rm -rf /var/lib/apt/lists/*
+    USER airflow
+    RUN pip install --no-cache-dir \
+        fastavro==1.9.4 \
+        kafka-python==2.0.2 \
+        python-dotenv==1.0.1 \
+        psycopg2-binary==2.9.9
+
+x-flink-build: &flink_build
+  context: .
+  dockerfile_inline: |
+    FROM flink:1.18-java11
+    RUN apt-get update -qq && \
+        apt-get install -y --no-install-recommends \
+            python3 python3-pip python3-dev python-is-python3 \
+            gcc openjdk-11-jdk-headless && \
+        rm -rf /var/lib/apt/lists/* && \
+        ln -sf /usr/lib/jvm/java-11-openjdk-$(dpkg --print-architecture)/include /opt/java/openjdk/include && \
+        pip3 install --quiet apache-flink==1.18.1 fastavro requests
+    RUN wget -q -P /opt/flink/lib/ \
+          https://repo1.maven.org/maven2/org/apache/flink/flink-connector-kafka/3.1.0-1.18/flink-connector-kafka-3.1.0-1.18.jar && \
+        wget -q -P /opt/flink/lib/ \
+          https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.6.1/kafka-clients-3.6.1.jar && \
+        wget -q -P /opt/flink/lib/ \
+          https://repo1.maven.org/maven2/org/apache/flink/flink-json/1.18.1/flink-json-1.18.1.jar && \
+        wget -q -P /opt/flink/lib/ \
+          https://repo1.maven.org/maven2/org/apache/flink/flink-avro/1.18.1/flink-avro-1.18.1.jar && \
+        wget -q -P /opt/flink/lib/ \
+          https://repo1.maven.org/maven2/org/apache/flink/flink-avro-confluent-registry/1.18.1/flink-avro-confluent-registry-1.18.1.jar && \
+        wget -q -P /opt/flink/lib/ \
+          https://repo1.maven.org/maven2/org/apache/avro/avro/1.11.3/avro-1.11.3.jar && \
+        wget -q -P /opt/flink/lib/ \
+          https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.14.1/jackson-core-2.14.1.jar && \
+        wget -q -P /opt/flink/lib/ \
+          https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-databind/2.14.1/jackson-databind-2.14.1.jar && \
+        wget -q -P /opt/flink/lib/ \
+          https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.14.1/jackson-annotations-2.14.1.jar && \
+        wget -q -P /opt/flink/lib/ \
+          https://packages.confluent.io/maven/io/confluent/kafka-schema-registry-client/7.4.0/kafka-schema-registry-client-7.4.0.jar && \
+        wget -q -P /opt/flink/lib/ \
+          https://packages.confluent.io/maven/io/confluent/common-config/7.4.0/common-config-7.4.0.jar && \
+        wget -q -P /opt/flink/lib/ \
+          https://packages.confluent.io/maven/io/confluent/common-utils/7.4.0/common-utils-7.4.0.jar && \
+        wget -q -P /opt/flink/lib/ \
+          https://repo1.maven.org/maven2/com/google/guava/guava/31.1-jre/guava-31.1-jre.jar && \
+        wget -q -P /opt/flink/lib/ \
+          https://repo1.maven.org/maven2/io/swagger/core/v3/swagger-annotations/2.1.10/swagger-annotations-2.1.10.jar && \
+        wget -q -P /opt/flink/lib/ \
+          https://repo1.maven.org/maven2/org/apache/commons/commons-compress/1.21/commons-compress-1.21.jar
+    RUN mkdir -p /opt/flink/checkpoints /opt/flink/savepoints /opt/flink/jobs \
+        && chown -R flink:flink /opt/flink/checkpoints /opt/flink/savepoints /opt/flink/jobs
+
+x-log-s: &log_s
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-log-m: &log_m
+  driver: "json-file"
+  options:
+    max-size: "20m"
+    max-file: "3"
+
+x-log-l: &log_l
+  driver: "json-file"
+  options:
+    max-size: "50m"
+    max-file: "5"
+
+x-airflow-env: &airflow_env
+  AIRFLOW__CORE__EXECUTOR: LocalExecutor
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@airflow-postgres:5432/airflow
+  AIRFLOW__CORE__FERNET_KEY: "${AIRFLOW_FERNET_KEY}"
+  AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+  AVIATIONSTACK_API_KEY: "${AVIATIONSTACK_API_KEY:-YOUR_API_KEY_HERE}"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+
+x-airflow-volumes: &airflow_volumes
+  - ../dags:/opt/airflow/dags
+  - ../scripts:/opt/airflow/scripts
+  - airflow-logs:/opt/airflow/logs
+  - /var/run/docker.sock:/var/run/docker.sock
+
+x-flink-volumes: &flink_volumes
+  - flink-checkpoints:/opt/flink/checkpoints
+  - flink-savepoints:/opt/flink/savepoints
+  - ../flink-jobs:/opt/flink/jobs
+
+services:
+
+  # =====================================================
+  #  KAFKA (KRaft mode)
+  # =====================================================
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_NUM_PARTITIONS: 3
+
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_RETENTION_BYTES: 10737418240
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+
+      KAFKA_NUM_NETWORK_THREADS: 3
+      KAFKA_NUM_IO_THREADS: 8
+      KAFKA_SOCKET_SEND_BUFFER_BYTES: 102400
+      KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: 102400
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: 104857600
+      KAFKA_MESSAGE_MAX_BYTES: 10485760
+
+      KAFKA_LOG_FLUSH_INTERVAL_MESSAGES: 10000
+      KAFKA_LOG_FLUSH_INTERVAL_MS: 1000
+      KAFKA_UNCLEAN_LEADER_ELECTION_ENABLE: "false"
+
+      KAFKA_HEAP_OPTS: "-Xms512M -Xmx1G"
+
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    logging: *log_l
+
+  # =====================================================
+  #  SCHEMA REGISTRY
+  # =====================================================
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.0
+    container_name: schema-registry
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL: BACKWARD
+      SCHEMA_REGISTRY_HEAP_OPTS: "-Xms128M -Xmx256M"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/subjects || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    logging: *log_s
+
+  # =====================================================
+  #  ksqlDB
+  # =====================================================
+  ksqldb-server:
+    image: confluentinc/cp-ksqldb-server:7.6.0
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    ports:
+      - "8088:8088"
+    environment:
+      KSQL_BOOTSTRAP_SERVERS: kafka:29092
+      KSQL_KSQL_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      KSQL_LISTENERS: http://0.0.0.0:8088
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8088/info || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging: *log_s
+
+  ksqldb-cli:
+    image: confluentinc/cp-ksqldb-cli:7.6.0
+    restart: unless-stopped
+    depends_on:
+      ksqldb-server:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    tty: true
+
+  # =====================================================
+  #  KAFDROP (UI Kafka)
+  # =====================================================
+  kafdrop:
+    image: obsidiandynamics/kafdrop:latest
+    container_name: kafdrop
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:9090:9000"
+    environment:
+      KAFKA_BROKERCONNECT: "kafka:29092"
+      SCHEMAREGISTRY_CONNECT: "http://schema-registry:8081"
+      JVM_OPTS: "-Xms64M -Xmx256M"
+      SERVER_SERVLET_CONTEXTPATH: "/"
+    logging: *log_s
+
+  # =====================================================
+  #  APACHE FLINK
+  # =====================================================
+  flink-jobmanager:
+    build: *flink_build
+    container_name: flink-jobmanager
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8082:8081"
+      - "6123:6123"
+    command: jobmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        jobmanager.rpc.port: 6123
+        jobmanager.memory.process.size: 1600m
+        state.backend: hashmap
+        state.checkpoints.dir: file:///opt/flink/checkpoints
+        state.savepoints.dir: file:///opt/flink/savepoints
+        execution.checkpointing.interval: 30s
+        execution.checkpointing.mode: EXACTLY_ONCE
+        execution.checkpointing.min-pause: 10s
+        restart-strategy: fixed-delay
+        restart-strategy.fixed-delay.attempts: 3
+        restart-strategy.fixed-delay.delay: 10s
+        web.cancel.enable: true
+        taskmanager.numberOfTaskSlots: 10
+        classloader.resolve-order: parent-first
+        classloader.parent-first-patterns.additional: com.google;io.confluent;org.apache.avro
+    volumes: *flink_volumes
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/overview || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    logging: *log_m
+
+  flink-taskmanager:
+    build: *flink_build
+    container_name: flink-taskmanager
+    restart: unless-stopped
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+    command: taskmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        jobmanager.rpc.port: 6123
+        taskmanager.memory.process.size: 2048m
+        taskmanager.numberOfTaskSlots: 8
+        state.backend: hashmap
+        state.checkpoints.dir: file:///opt/flink/checkpoints
+        state.savepoints.dir: file:///opt/flink/savepoints
+        classloader.resolve-order: parent-first
+        classloader.parent-first-patterns.additional: com.google;io.confluent;org.apache.avro
+    volumes: *flink_volumes
+    logging: *log_m
+
+  flink-sql-client:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM flink:1.18-java11
+        RUN wget -q -P /opt/flink/lib/ \
+              https://repo1.maven.org/maven2/org/apache/flink/flink-connector-kafka/3.1.0-1.18/flink-connector-kafka-3.1.0-1.18.jar && \
+            wget -q -P /opt/flink/lib/ \
+              https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.6.1/kafka-clients-3.6.1.jar && \
+            wget -q -P /opt/flink/lib/ \
+              https://repo1.maven.org/maven2/org/apache/flink/flink-json/1.18.1/flink-json-1.18.1.jar && \
+            wget -q -P /opt/flink/lib/ \
+              https://repo1.maven.org/maven2/org/apache/flink/flink-avro/1.18.1/flink-avro-1.18.1.jar && \
+            wget -q -P /opt/flink/lib/ \
+              https://repo1.maven.org/maven2/org/apache/flink/flink-avro-confluent-registry/1.18.1/flink-avro-confluent-registry-1.18.1.jar && \
+            wget -q -P /opt/flink/lib/ \
+              https://repo1.maven.org/maven2/org/apache/avro/avro/1.11.3/avro-1.11.3.jar && \
+            wget -q -P /opt/flink/lib/ \
+              https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.14.1/jackson-core-2.14.1.jar && \
+            wget -q -P /opt/flink/lib/ \
+              https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-databind/2.14.1/jackson-databind-2.14.1.jar && \
+            wget -q -P /opt/flink/lib/ \
+              https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.14.1/jackson-annotations-2.14.1.jar && \
+            wget -q -P /opt/flink/lib/ \
+              https://packages.confluent.io/maven/io/confluent/kafka-schema-registry-client/7.4.0/kafka-schema-registry-client-7.4.0.jar && \
+            wget -q -P /opt/flink/lib/ \
+              https://packages.confluent.io/maven/io/confluent/common-config/7.4.0/common-config-7.4.0.jar && \
+            wget -q -P /opt/flink/lib/ \
+              https://packages.confluent.io/maven/io/confluent/common-utils/7.4.0/common-utils-7.4.0.jar && \
+            wget -q -P /opt/flink/lib/ \
+              https://repo1.maven.org/maven2/com/google/guava/guava/31.1-jre/guava-31.1-jre.jar && \
+            wget -q -P /opt/flink/lib/ \
+              https://repo1.maven.org/maven2/io/swagger/core/v3/swagger-annotations/2.1.10/swagger-annotations-2.1.10.jar && \
+            wget -q -P /opt/flink/lib/ \
+              https://repo1.maven.org/maven2/org/apache/commons/commons-compress/1.21/commons-compress-1.21.jar
+    container_name: flink-sql-client
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        /docker-entrypoint.sh help
+        printf '#!/bin/bash\nexec /opt/flink/bin/sql-client.sh -i /opt/flink/jobs/init_tables.sql "$@"\n' > /usr/local/bin/sql-client
+        chmod +x /usr/local/bin/sql-client
+        ln -sf /usr/local/bin/sql-client /opt/flink/bin/sql-client-init
+        echo "Flink config initialized — container staying alive"
+        tail -f /dev/null
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        jobmanager.rpc.port: 6123
+        rest.address: flink-jobmanager
+        rest.port: 8081
+    volumes:
+      - ../flink-jobs:/opt/flink/jobs
+    tty: true
+    stdin_open: true
+
+  # =====================================================
+  #  APACHE AIRFLOW
+  # =====================================================
+  airflow-postgres:
+    image: postgres:15-alpine
+    container_name: airflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-pg-data:/var/lib/postgresql/data
+    ports:
+      - "${AIRFLOW_POSTGRES_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *log_s
+
+  airflow-init:
+    build: *airflow_build
+    container_name: airflow-init
+    environment:
+      <<: *airflow_env
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USERNAME}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username ${AIRFLOW_ADMIN_USERNAME} \
+          --password ${AIRFLOW_ADMIN_PASSWORD} \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email bac5@goldencollar.com || true
+        echo "Airflow init done."
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+    volumes: *airflow_volumes
+
+  airflow-webserver:
+    build: *airflow_build
+    container_name: airflow-webserver
+    restart: unless-stopped
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      <<: *airflow_env
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      AIRFLOW__WEBSERVER__RBAC: "true"
+    command: airflow webserver
+    volumes: *airflow_volumes
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    logging: *log_m
+
+  airflow-scheduler:
+    build: *airflow_build
+    container_name: airflow-scheduler
+    user: "0:0"
+    restart: unless-stopped
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+    environment:
+      <<: *airflow_env
+    command: airflow scheduler
+    volumes: *airflow_volumes
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    logging: *log_m
+
+  # =====================================================
+  #  EARTHQUAKE PRODUCER (temps réel)
+  #
+  #  Tourne en permanence : poll USGS toutes les 30s,
+  #  publie dans Kafka (earthquake-raw) ET dans PostgreSQL
+  #  (earthquake_events) pour la map Tableau.
+  # =====================================================
+  earthquake-producer:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.11-slim
+        RUN pip install --no-cache-dir \
+            kafka-python==2.0.2 \
+            psycopg2-binary==2.9.9 \
+            requests==2.31.0
+    container_name: earthquake-producer
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      airflow-postgres:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      POSTGRES_HOST: "airflow-postgres"
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: "airflow"
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+    volumes:
+      - ../producer:/app
+    command: python /app/earthquake_producer.py
+    logging: *log_s
+
+  # =====================================================
+  #  KAFKA → POSTGRES SINK (Tableau)
+  #
+  #  Consomme earthquake-stats, earthquake-by-depth,
+  #  earthquake-alerts et insère dans PostgreSQL `earthquake`
+  #  pour la connexion Tableau Desktop.
+  # =====================================================
+  kafka-to-postgres:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.11-slim
+        RUN pip install --no-cache-dir \
+            kafka-python==2.0.2 \
+            psycopg2-binary==2.9.9
+    container_name: kafka-to-postgres
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      airflow-postgres:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      POSTGRES_HOST: airflow-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: earthquake
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ../scripts:/scripts
+    command: python /scripts/kafka_to_postgres.py
+    logging: *log_s
+
+volumes:
+  kafka-data:
+  flink-checkpoints:
+  flink-savepoints:
+  airflow-pg-data:
+  airflow-logs:
