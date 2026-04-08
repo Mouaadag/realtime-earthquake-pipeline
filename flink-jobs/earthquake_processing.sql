@@ -19,6 +19,29 @@
 -- PROCTIME() : horloge système Flink (temps de traitement).
 -- scan.startup.mode = 'earliest-offset' : lit depuis le début du topic.
 -- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS earthquake_raw (
+    event_id     STRING,
+    magnitude    DOUBLE,
+    mag_type     STRING,
+    place        STRING,
+    event_time   STRING,
+    latitude     DOUBLE,
+    longitude    DOUBLE,
+    depth_km     DOUBLE,
+    significance INT,
+    tsunami      INT,
+    status       STRING,
+    type         STRING,
+    title        STRING,
+    ingested_at  STRING,
+    proc_time    AS PROCTIME()
+) WITH (
+    'connector'                    = 'kafka',
+    'topic'                        = 'earthquake-raw',
+    'properties.bootstrap.servers' = 'kafka:29092',
+    'scan.startup.mode'            = 'earliest-offset',
+    'format'                       = 'json'
+);
 
 
 -- ---------------------------------------------------------------------------
@@ -30,11 +53,49 @@
 --   is_significant  : 1 si significance > 500 (seuil USGS)
 --   processed_at    : timestamp de traitement Flink
 -- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS earthquake_enriched (
+    event_id        STRING,
+    magnitude       DOUBLE,
+    mag_type        STRING,
+    place           STRING,
+    event_time      STRING,
+    latitude        DOUBLE,
+    longitude       DOUBLE,
+    depth_km        DOUBLE,
+    significance    INT,
+    tsunami         INT,
+    status          STRING,
+    title           STRING,
+    depth_category  STRING,
+    severity        STRING,
+    is_significant  INT,
+    processed_at    STRING
+) WITH (
+    'connector'                    = 'kafka',
+    'topic'                        = 'earthquake-enriched',
+    'properties.bootstrap.servers' = 'kafka:29092',
+    'format'                       = 'json'
+);
 
 
 -- ---------------------------------------------------------------------------
 -- Table SINK 2 : alertes temps réel → topic earthquake-alerts
 -- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS earthquake_alerts (
+    event_id     STRING,
+    event_time   STRING,
+    magnitude    DOUBLE,
+    place        STRING,
+    depth_km     DOUBLE,
+    tsunami      INT,
+    severity     STRING,
+    alert_time   STRING
+) WITH (
+    'connector'                    = 'kafka',
+    'topic'                        = 'earthquake-alerts',
+    'properties.bootstrap.servers' = 'kafka:29092',
+    'format'                       = 'json'
+);
 
 
 -- ===========================================================================
@@ -44,7 +105,44 @@
 --  une ligne enrichie dans earthquake-enriched.
 --  Pas de GROUP BY → pas de fenêtre → latence quasi nulle.
 -- ===========================================================================
+INSERT INTO earthquake_enriched
+SELECT
+    event_id,
+    magnitude,
+    mag_type,
+    place,
+    event_time,
+    latitude,
+    longitude,
+    depth_km,
+    significance,
+    tsunami,
+    status,
+    title,
 
+    -- Catégorie de profondeur (classification sismologique standard)
+    CASE
+        WHEN depth_km < 70  THEN 'Superficiel (0-70 km)'
+        WHEN depth_km < 300 THEN 'Intermédiaire (70-300 km)'
+        ELSE                     'Profond (300+ km)'
+    END AS depth_category,
+
+    -- Niveau de sévérité
+    CASE
+        WHEN tsunami = 1      THEN 'TSUNAMI'
+        WHEN magnitude >= 8.0 THEN 'Dévastateur'
+        WHEN magnitude >= 7.0 THEN 'Majeur'
+        WHEN magnitude >= 6.0 THEN 'Fort'
+        WHEN magnitude >= 5.0 THEN 'Modéré'
+        ELSE                       'Mineur'
+    END AS severity,
+
+    -- Séisme significatif selon le seuil USGS
+    CASE WHEN significance > 500 THEN 1 ELSE 0 END AS is_significant,
+
+    CAST(CURRENT_TIMESTAMP AS STRING) AS processed_at
+
+FROM earthquake_raw;
 
 
 -- ===========================================================================
@@ -53,3 +151,21 @@
 --  Seuls les séismes dangereux (magnitude >= 5.0 ou tsunami) sont émis.
 --  Chaque ligne source génère immédiatement une ligne en sortie.
 -- ===========================================================================
+INSERT INTO earthquake_alerts
+SELECT
+    event_id,
+    event_time,
+    magnitude,
+    place,
+    depth_km,
+    tsunami,
+    CASE
+        WHEN tsunami = 1      THEN 'TSUNAMI'
+        WHEN magnitude >= 8.0 THEN 'Dévastateur'
+        WHEN magnitude >= 7.0 THEN 'Majeur'
+        WHEN magnitude >= 6.0 THEN 'Fort'
+        ELSE                       'Modéré'
+    END AS severity,
+    CAST(CURRENT_TIMESTAMP AS STRING) AS alert_time
+FROM earthquake_raw
+WHERE magnitude >= 5.0 OR tsunami = 1;
